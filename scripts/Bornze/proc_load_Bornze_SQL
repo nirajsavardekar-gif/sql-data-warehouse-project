@@ -1,0 +1,147 @@
+/*
+=======================================================================================
+Stored Procedure: Lead Bronze Layer (Source -> Bronze)
+=======================================================================================
+Script Purpose:
+    This stored procedure loads data into the 'Bronze' schema from external CSV files.
+    It performs the following actions:
+      - Truncates the bronze tables before loading data.
+      - Uses the 'BULK INSERT' command to load data from CSV files to bronze tables.
+
+Parameters:
+    None.
+    This stored procedure does not accept any parameters or returns any values.
+
+Usage Example:
+    EXEC Bronz.load_bronze;
+
+=======================================================================================
+*/
+
+CREATE OR ALTER PROCEDURE Bronze.load_bronze AS
+BEGIN
+    Declare @Start_time DATETIME, @End_time DATETIME, @Batch_start_time DATETIME, @Batch_end_time DATETIME;
+    BEGIN TRY
+        SET @Batch_start_time = GETDATE();
+        PRINT '===============================================';
+        PRINT 'Loading Bronze Layer';
+        PRINT '===============================================';
+
+        Print '-----------------------------------------------';
+        Print 'Loading CRM Tables';
+        Print '-----------------------------------------------';
+    
+        SET @Start_time = GETDATE();
+        Print '>> Truncating Table:Bronze.crm_cust_info';
+        TRUNCATE TABLE Bronze.crm_cust_info;
+        PRINT '>> Inserting Data Indo: Bronze.crm_cust_info';
+        BULK INSERT Bronze.crm_cust_info
+        From 'C:\Users\Niraj Savardekar\Desktop\Data Engineering (SQL) Learning Material\SQL DATA WAREHOUSE PROJECT\sql-data-warehouse-project\datasets\source_crm\cust_info.csv'
+        With (
+            Firstrow = 2,
+            FieldTerminator = ',',
+            Tablock 
+            );
+        SET @End_time = GETDATE();
+        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
+        PRINT'>> ----------------';
+
+
+        SET @Start_time = GETDATE();
+        Print '>> Truncating Table:Bronze.crm_prd_info';
+        TRUNCATE TABLE Bronze.crm_prd_info;
+        PRINT '>> Inserting Data Indo: Bronze.crm_prd_info';
+        BULK INSERT Bronze.crm_prd_info
+        From 'C:\Users\Niraj Savardekar\Desktop\Data Engineering (SQL) Learning Material\SQL DATA WAREHOUSE PROJECT\sql-data-warehouse-project\datasets\source_crm\prd_info.csv'
+        With (
+            Firstrow = 2,
+            FieldTerminator = ',',
+            Tablock 
+            );
+        SET @End_time = GETDATE();
+        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
+        PRINT'>> ----------------';
+    
+        
+        SET @Start_time = GETDATE();
+        Print '>> Truncating Table:Bronze.crm_sales_details';
+        TRUNCATE TABLE Bronze.crm_sales_details;
+        PRINT '>> Inserting Data Indo: BBronze.crm_sales_details';
+        BULK INSERT Bronze.crm_sales_details
+        From 'C:\Users\Niraj Savardekar\Desktop\Data Engineering (SQL) Learning Material\SQL DATA WAREHOUSE PROJECT\sql-data-warehouse-project\datasets\source_crm\sales_details.csv'
+        With (
+            Firstrow = 2,
+            FieldTerminator = ',',
+            Tablock 
+            );
+        SET @End_time = GETDATE();
+        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
+        PRINT'>> ----------------';
+
+
+
+        Print '-----------------------------------------------';
+        Print 'Loading ERP Tables';
+        Print '-----------------------------------------------'; 
+
+        SET @Start_time = GETDATE();
+        Print '>> Truncating Table:Bronze.erp_CUST_AZ12';
+        TRUNCATE TABLE Bronze.erp_CUST_AZ12;
+        PRINT '>> Inserting Data Indo: Bronze.erp_CUST_AZ12';
+        BULK INSERT Bronze.erp_CUST_AZ12
+        From 'C:\Users\Niraj Savardekar\Desktop\Data Engineering (SQL) Learning Material\SQL DATA WAREHOUSE PROJECT\sql-data-warehouse-project\datasets\source_erp\CUST_AZ12.csv'
+        With (
+            Firstrow = 2,
+            FieldTerminator = ',',
+            Tablock 
+            );
+        SET @End_time = GETDATE();
+        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
+        PRINT'>> ----------------';
+
+        SET @Start_time = GETDATE();
+        Print '>> Truncating Table:Bronze.erp_LOC_A101';
+        TRUNCATE TABLE Bronze.erp_LOC_A101;
+        PRINT '>> Inserting Data Indo: Bronze.erp_LOC_A101';
+        BULK INSERT Bronze.erp_LOC_A101
+        From 'C:\Users\Niraj Savardekar\Desktop\Data Engineering (SQL) Learning Material\SQL DATA WAREHOUSE PROJECT\sql-data-warehouse-project\datasets\source_erp\LOC_A101.csv'
+        With (
+            Firstrow = 2,
+            FieldTerminator = ',',
+            Tablock 
+            );
+        SET @End_time = GETDATE();
+        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
+        PRINT'>> ----------------';
+
+        SET @Start_time = GETDATE();
+        Print '>> Truncating Table:Bronze.erp_PX_CAT_G1V2';
+        TRUNCATE TABLE Bronze.erp_PX_CAT_G1V2;
+        PRINT '>> Inserting Data Indo: Bronze.erp_PX_CAT_G1V2';
+        BULK INSERT Bronze.erp_PX_CAT_G1V2
+        From 'C:\Users\Niraj Savardekar\Desktop\Data Engineering (SQL) Learning Material\SQL DATA WAREHOUSE PROJECT\sql-data-warehouse-project\datasets\source_erp\PX_CAT_G1V2.csv'
+        With (
+            Firstrow = 2,
+            FieldTerminator = ',',
+            Tablock 
+            );
+      SET @End_time = GETDATE();
+        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
+        PRINT'>> ----------------';
+
+      SET @Batch_end_time = GETDATE();
+      PRINT'====================================================';
+      PRINT ' Loading Bronze Layer is Completed';
+      Print ' -Total Load Duration:' + CAST (Datediff(Second,@batch_start_time, @batch_end_time) As NVARCHAR) + 'Seconds';
+      PRINT'====================================================';
+
+    END TRY
+    BEGIN CATCH 
+      Print '=====================================================';
+      PRINT 'Error Occured during Loading Bronze Layer';
+      PRINT 'Error Message' + Error_message ();
+      PRINT 'Error Message' + CAST (Error_number () AS Nvarchar);
+      PRINT 'Error Message' + CAST (Error_state () AS Nvarchar);
+      Print '=====================================================';
+    END CATCH
+END
