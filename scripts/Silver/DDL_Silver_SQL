@@ -1,223 +1,96 @@
-/*
-=======================================================================================
-Stored Procedure: Lead Silver Layer (Bronze -> Silver )
-=======================================================================================
+/* 
+=============================================================
+DDL Script: Create Silver Tables
+=============================================================
+
 Script Purpose:
-    This stored procedure loads data into the 'Silver' schema from Bronze Data.
-    It performs the following actions:
-      - Truncates the Silver tables before loading data.
+	This script creates tables in the 'Silver' schema, dropping existing tables if they already exisit.
+	Run this script to re-define the DDL structure of 'Silver' tables
 
-Parameters:
-    None.
-    This stored procedure does not accept any parameters or returns any values.
-
-Usage Example:
-    EXEC Silver.load_Silver;
-
-=======================================================================================
+=============================================================
 */
 
-CREATE OR ALTER PROCEDURE Silver.load_silver AS
-BEGIN 
 
-Declare @Start_time DATETIME, @End_time DATETIME, @Batch_start_time DATETIME, @Batch_end_time DATETIME;
-    BEGIN TRY
-        SET @Batch_start_time = GETDATE();
-        PRINT '===============================================';
-        PRINT 'Loading Silver Layer';
-        PRINT '===============================================';
+IF OBJECT_ID ('Silver.crm_cust_info', 'U') Is not null 
+Drop Table Silver.crm_cust_info;
+GO 
 
-        Print '-----------------------------------------------';
-        Print 'Loading CRM Tables';
-        Print '-----------------------------------------------';
-    
-        SET @Start_time = GETDATE();
-	PRINT '>>TRUNCATING TABLE: Silver.crm_cust_info';
-	TRUNCATE TABLE Silver.crm_cust_info
-	PRINT '>> INSERTING DATA INTO :  Silver.crm_cust_info';
-	INSERT INTO Silver.crm_cust_info(
-	cst_id,
-	cst_key,
-	cst_firstname,
-	cst_lastname,
-	cst_material_status,
-	cst_gndr,
-	cst_create_data)
-	Select 
-	cst_id,
-	cst_key,
-	TRIM(cst_firstname) AS cst_firstname,
-	TRIM (cst_lastname) AS cst_lastname,
-	CASE WHEN UPPER(TRIM(cst_material_status)) = 'S' THEN 'Single'
-		 WHEN UPPER(TRIM(cst_material_status)) = 'M' THEN 'Married'
-		 ELSE 'N/A'
-	END cst_material_status,
-	CASE WHEN UPPER(TRIM(cst_gndr)) = 'F' THEN 'Female'
-		 WHEN UPPER(TRIM(cst_gndr)) = 'M' THEN 'Male'
-		 ELSE 'N/A'
-	END cst_gndr,
-	cst_create_data
-	From(
-	Select *,
-	ROW_NUMBER() OVER (PARTITION BY cst_id ORDER BY cst_create_data DESC) AS Flag_last
-	From Bronze.crm_cust_info
-	Where cst_id is Not Null
-	)t Where Flag_last=1;
-
-	    SET @End_time = GETDATE();
-        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
-        PRINT'>> ----------------';
-
-    SET @Start_time = GETDATE();
-	PRINT '>>TRUNCATING TABLE: Silver.crm_prd_info';
-	TRUNCATE TABLE Silver.crm_prd_info
-	PRINT '>> INSERTING DATA INTO :  Silver.crm_prd_info';
-	INSERT INTO Silver.crm_prd_info (
-		prd_id,
-		cat_id,
-		prd_key,
-		prdt_nm,
-		prd_cost,
-		prd_line,
-		prd_start_dt,
-		prd_end_dt)
-	SELECT 
-	prd_id,
-	Replace(SUBSTRING (prd_key,1,5),'-', '_') AS cat_id,
-	Substring (prd_key,7, LEN(prd_key)) AS prd_key,
-	prdt_nm,
-	ISNULL (prd_cost,0) AS prd_cost,
-	CASE UPPER (TRIM(prd_line))
-		WHEN 'M' THEN 'Mountain'
-		WHEN 'R' THEN 'Road'
-		WHEN 'S' THEN 'Other Sales'
-		WHEN 'T' THEN 'Touring'
-		ELSE 'N/A'
-	END AS prd_line,
-	CAST(prd_start_dt AS DATE) AS prd_start_dt,
-	CAST (LEAD (prd_start_dt) OVER (PARTITION BY prd_key ORDER BY prd_start_dt) - 1 AS DATE) AS prd_end_dt
-	FROM Bronze.crm_prd_info;
-	    SET @End_time = GETDATE();
-        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
-        PRINT'>> ----------------';
-
-	SET @Start_time = GETDATE();
-	PRINT '>>TRUNCATING TABLE: Silver.crm_sales_details';
-	TRUNCATE TABLE Silver.crm_sales_details
-	PRINT '>> INSERTING DATA INTO :  Silver.crm_sales_details';
-	INSERT INTO Silver.crm_sales_details (
-		sls_ord_num,
-		sls_prd_key,
-		sls_cust_id,
-		sls_order_dt,
-		sls_ship_dt,
-		sls_due_dt,
-		sls_sales,
-		sls_quantity,
-		sls_price)
-	SELECT 
-	sls_ord_num,
-	sls_prd_key,
-	sls_cust_id,
-	CASE WHEN sls_order_dt=0  or LEN (sls_order_dt) != 8 THEN NULL
-		 ELSE CAST(CAST(sls_order_dt AS VARCHAR)AS DATE)
-	END AS sls_order_dt,
-	CASE WHEN sls_ship_dt=0  or LEN (sls_ship_dt) != 8 THEN NULL
-		 ELSE CAST(CAST(sls_ship_dt AS VARCHAR)AS DATE)
-	END AS sls_ship_dt,
-	CASE WHEN sls_due_dt=0  or LEN (sls_due_dt) != 8 THEN NULL
-		 ELSE CAST(CAST(sls_due_dt AS VARCHAR)AS DATE)
-	END AS sls_due_dt,
-	CASE When sls_sales IS nUll oR sls_sales <=0 OR sls_sales != sls_quantity * ABS(sls_price) 
-		THen sls_quantity * ABS(sls_price) 
-		Else sls_sales
-	End  As sls_sales,
-	sls_quantity,
-	CASE When sls_price  IS nUll oR sls_price <=0 
-		THen sls_sales / NULLIF (sls_quantity,0) 
-		Else sls_price
-	END As sls_price
-	FROM Bronze.crm_sales_details;
-        SET @End_time = GETDATE();
-        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
-        PRINT'>> ----------------';
-
-        Print '-----------------------------------------------';
-        Print 'Loading ERP Tables';
-        Print '-----------------------------------------------'; 
-
-        SET @Start_time = GETDATE();
-	PRINT '>>TRUNCATING TABLE: Silver.erp_CUST_AZ12';
-	TRUNCATE TABLE Silver.erp_CUST_AZ12
-	PRINT '>> INSERTING DATA INTO :  Silver.erp_CUST_AZ12';
-	INSERT INTO Silver.erp_CUST_AZ12 (
-	CID,
-	BDATE,
-	GEN)
-	Select 
-	CASE WHEN CID LIKE 'NAS%' THEN SUBSTRING (CID, 4, LEN(CID)) 
-		 ELSE CID 
-	END AS CID,
-	CASE WHEN BDATE > GETDATE() THEN NULL
-		 ELSE BDATE
-	END AS BDATE,
-	CASE WHEN UPPER (TRIM (GEN)) IN ('F' , 'FEMALE') THEN 'Female'
-		 WHEN UPPER (TRIM (GEN)) IN ('M' , 'MALE') THEN 'Male'
-		 ELSE 'N/A'
-	END AS GEN
-	From Bronze.erp_CUST_AZ12;
-	SET @End_time = GETDATE();
-        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
-        PRINT'>> ----------------';
-
-	SET @Start_time = GETDATE();
-	PRINT '>>TRUNCATING TABLE: Silver.erp_LOC_A101';
-	TRUNCATE TABLE Silver.erp_LOC_A101
-	PRINT '>> INSERTING DATA INTO :  Silver.erp_LOC_A101';
-	INSERT INTO Silver.erp_LOC_A101
-	(CID,CNTRY)
-	Select 
-	REPLACE (CID,'-', '') CID,
-	CASE WHEN TRIM(CNTRY) = 'DE' THEN 'Germany'
-		 WHEN TRIM(CNTRY) IN ('US','USA') THEN 'United States'
-		 WHEN TRIM(CNTRY) = '' OR TRIM(CNTRY) IS Null THEN 'N/A'
-		 ELSE TRIM(CNTRY)
-	END AS CNTRY
-	From Bronze.erp_LOC_A101;
-	    SET @End_time = GETDATE();
-        PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
-        PRINT'>> ----------------';
+CREATE TABLE Silver.crm_cust_info(
+	cst_id INT,
+	cst_key Nvarchar (50),
+	cst_firstname Nvarchar (50),
+	cst_lastname Nvarchar (50),
+	cst_material_status Nvarchar (50),
+	cst_gndr Nvarchar (50),
+	cst_create_data DATE
+);
+GO
 
 
-    SET @Start_time = GETDATE();
-	PRINT '>>TRUNCATING TABLE: Silver.erp_PX_CAT_G1V2';
-	TRUNCATE TABLE Silver.erp_PX_CAT_G1V2
-	PRINT '>> INSERTING DATA INTO :  Silver.erp_PX_CAT_G1V2';
-	INSERT INTO Silver.erp_PX_CAT_G1V2
-	(ID,CAT,SUBCAT,MAINTENANCE)
-	SELECT 
-	ID,
-	CAT,
-	SUBCAT,
-	MAINTENANCE
-	FROM Bronze.erp_PX_CAT_G1V2;
-      SET @End_time = GETDATE();
-      PRINT'>> Load Duration:' + CAST (Datediff (Second, @start_time, @End_time) As NVARCHAR)+'Seconds';
-      PRINT'>> ----------------';
+IF OBJECT_ID ('Silver.crm_sales_details', 'U') Is not null 
+Drop Table Silver.crm_sales_details;
+GO
 
-      SET @Batch_end_time = GETDATE();
-      PRINT'====================================================';
-      PRINT ' Loading Silver Layer is Completed';
-      Print ' -Total Load Duration:' + CAST (Datediff(Second,@batch_start_time, @batch_end_time) As NVARCHAR) + 'Seconds';
-      PRINT'====================================================';
+Create TABLE Silver.crm_sales_details (
+	sls_ord_num Nvarchar (50),
+	sls_prd_key Nvarchar (50),
+	sls_cust_id INT,
+	sls_order_dt DATE,
+	sls_ship_dt DATE,
+	sls_due_dt DATE,
+	sls_sales INT,
+	sls_quantity INT,
+	sls_price INT 
+);
+GO 
 
-    END TRY
-    BEGIN CATCH 
-      Print '=====================================================';
-      PRINT 'Error Occured during Loading Silver Layer';
-      PRINT 'Error Message' + Error_message ();
-      PRINT 'Error Message' + CAST (Error_number () AS Nvarchar);
-      PRINT 'Error Message' + CAST (Error_state () AS Nvarchar);
-      Print '=====================================================';
-    END CATCH
-END
+
+IF OBJECT_ID ('Silver.crm_prd_info', 'U') Is not null 
+Drop Table Silver.crm_prd_info;
+GO
+
+CREATE TABLE Silver.crm_prd_info(
+	prd_id INT,
+	prd_key Nvarchar (50),
+	prdt_nm Nvarchar (50),
+	prd_cost INT,
+	prd_line Nvarchar (50),
+	prd_start_dt DATE,
+	prd_end_dt DATE
+);
+GO 
+
+
+IF OBJECT_ID ('Silver.erp_CUST_AZ12', 'U') Is not null 
+Drop Table Silver.erp_CUST_AZ12; 
+Go 
+
+CREATE TABLE Silver.erp_CUST_AZ12(
+	CID Nvarchar (50),
+	BDATE DATE,
+	GEN Nvarchar (50)
+);
+GO
+
+
+IF OBJECT_ID ('Silver.erp_LOC_A101', 'U') Is not null 
+Drop Table Silver.erp_LOC_A101;
+Go
+
+CREATE TABLE Silver.erp_LOC_A101(
+	CID Nvarchar (50),
+	CNTRY Nvarchar (50)
+);
+GO
+
+
+IF OBJECT_ID ('Silver.erp_PX_CAT_G1V2', 'U') Is not null 
+Drop Table Silver.erp_PX_CAT_G1V2;
+GO
+
+CREATE TABLE Silver.erp_PX_CAT_G1V2(
+	ID Nvarchar (50),
+	CAT Nvarchar (50),
+	SUBCAT NVARCHAR (50),
+	MAINTENANCE NVARCHAR (50)
+);
